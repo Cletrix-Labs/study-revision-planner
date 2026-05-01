@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Study Revision Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-left">
+          <p class="eyebrow">Spaced repetition scheduler</p>
+          <h1>
+            Plan revisions<br />
+            before forgetting<br />
+            curve decay<br />
+            does the damage.
+          </h1>
+          <p class="lede">Add a subject, list your topics, and the app turns each one into a revision timeline based on difficulty and exam date.</p>
+        </div>
+        <div class="hero-card">
+          <div>
+            <span class="stat-label">Subjects</span>
+            <strong>{{ subjects|length }}</strong>
+          </div>
+          <div>
+            <span class="stat-label">Due today</span>
+            <strong>{{ today_sessions|length }}</strong>
+          </div>
+          <div>
+            <span class="stat-label">Overdue</span>
+            <strong>{{ overdue_sessions|length }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel form-panel">
+        <div class="panel-heading">
+          <h2>Create a revision plan</h2>
+          <p>Use one topic per line. Format: topic name | easy, medium, or hard.</p>
+        </div>
+        <form method="post" action="{{ url_for('add_subject') }}" class="subject-form">
+          <label>
+            Subject name
+            <input type="text" name="subject_name" placeholder="Computer Science" required />
+          </label>
+          <label>
+            Exam date
+            <input type="date" name="exam_date" required />
+          </label>
+          <label class="full-width">
+            Topics
+            <textarea name="topics" rows="7" placeholder="Data Structures and Algorithms | hard
+Python Programming | medium
+Operating Systems | easy" required></textarea>
+          </label>
+          <div class="form-actions full-width">
+            <button type="submit" class="primary-button">Generate schedule</button>
+            <a href="{{ url_for('export_csv') }}" class="secondary-button">Export CSV</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="grid two-up">
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Today's tasks</h2>
+            <p>Sessions scheduled for today and not yet completed.</p>
+          </div>
+          {% if today_sessions %}
+            <div class="task-list">
+              {% for session in today_sessions %}
+                <div class="task-card due">
+                  <div>
+                    <span class="task-meta">{{ session.subject_name }} · {{ session.topic_name }}</span>
+                    <h3>{{ session.label }}</h3>
+                    <p>{{ session.date }} · {{ session.difficulty|title }}</p>
+                  </div>
+                  <form method="post" action="{{ url_for('toggle_session', session_id=session.session_id) }}">
+                    <button type="submit" class="mark-done-btn">Mark done</button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="empty-state">No sessions are due today.</p>
+          {% endif %}
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <h2>Overdue alerts</h2>
+            <p>Study sessions that slipped past their scheduled date.</p>
+          </div>
+          {% if overdue_sessions %}
+            <div class="task-list">
+              {% for session in overdue_sessions %}
+                <div class="task-card overdue">
+                  <div>
+                    <span class="task-meta">{{ session.subject_name }} · {{ session.topic_name }}</span>
+                    <h3>{{ session.label }}</h3>
+                    <p>Was due on {{ session.date }}</p>
+                  </div>
+                  <form method="post" action="{{ url_for('toggle_session', session_id=session.session_id) }}">
+                    <button type="submit" class="mark-done-btn">Mark done</button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="empty-state">Nothing overdue right now.</p>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Upcoming sessions</h2>
+          <p>Next revision dates across all subjects.</p>
+        </div>
+        {% if upcoming_sessions %}
+          <div class="timeline">
+            {% for session in upcoming_sessions %}
+              <div class="timeline-item">
+                <div class="timeline-date">{{ session.date }}</div>
+                <div>
+                  <h3>{{ session.subject_name }} · {{ session.topic_name }}</h3>
+                  <p>{{ session.label }} · {{ session.difficulty|title }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="empty-state">Add a subject to see the schedule timeline.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Subjects</h2>
+          <p>Track progress per subject and topic.</p>
+        </div>
+        {% if subjects %}
+          <div class="subject-grid">
+            {% for subject in subjects %}
+              <article class="subject-card">
+                <div class="subject-head">
+                  <div>
+                    <span class="task-meta">Exam {{ subject.exam_date }}</span>
+                    <h3>{{ subject.name }}</h3>
+                  </div>
+                  <span class="progress-pill">{{ subject.progress }}%</span>
+                </div>
+                <div class="progress-bar"><span style="width: {{ subject.progress }}%"></span></div>
+                <div class="subject-stats">
+                  <span>{{ subject.completed_sessions }}/{{ subject.total_sessions }} completed</span>
+                  <span>{{ subject.today_count }} due today</span>
+                  <span>{{ subject.overdue_count }} overdue</span>
+                </div>
+                <ul class="topic-list">
+                  {% for topic in subject.topics %}
+                    <li>
+                      <div>
+                        <strong>{{ topic.name }}</strong>
+                        <span>{{ topic.difficulty|title }}</span>
+                      </div>
+                      <span>{{ topic.completed_sessions }}/{{ topic.total_sessions }}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="empty-state">No subjects yet. Add your first revision plan above.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
